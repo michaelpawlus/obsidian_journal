@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "obsidian-journal"
+version = "0.1.0"
+description = "CLI tool for agentic journal capture and Obsidian vault organization"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.40.0",
+    "typer[all]>=0.12.0",
+    "python-frontmatter>=1.1.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.scripts]
+oj = "obsidian_journal.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/obsidian_journal"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
