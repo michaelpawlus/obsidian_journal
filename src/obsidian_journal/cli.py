@@ -21,12 +21,17 @@ def journal(
     type: ReflectionType | None = typer.Option(
         None, "--type", "-t", help="Reflection type"
     ),
+    quick: str | None = typer.Option(
+        None, "--quick", "-q", help="Quick capture — skip conversation"
+    ),
 ) -> None:
     """Start an agentic journal capture session."""
     cfg = Config.load()
 
-    # Type picker if not provided
-    if type is None:
+    # Type picker if not provided (default to FREE_FORM for quick capture)
+    if type is None and quick is not None:
+        type = ReflectionType.FREE_FORM
+    elif type is None:
         console.print("\n[bold]Choose a reflection type:[/bold]\n")
         for i, rt in enumerate(ReflectionType, 1):
             console.print(f"  {i}. {rt.value}")
@@ -39,9 +44,14 @@ def journal(
     from obsidian_journal.journal.capture import run_conversation
     from obsidian_journal.journal.synthesize import synthesize_note
     from obsidian_journal import vault
+    from obsidian_journal.models import ConversationMessage
 
-    # Run conversation
-    messages = run_conversation(cfg, type)
+    # Run conversation or use quick capture
+    if quick is not None:
+        messages = [ConversationMessage(role="user", content=quick)]
+    else:
+        messages = run_conversation(cfg, type)
+
     if not any(m.role == "user" for m in messages):
         console.print("[yellow]No input captured. Exiting.[/yellow]")
         raise typer.Exit()
@@ -67,6 +77,33 @@ def journal(
         console.print(f"\n[bold green]Saved:[/bold green] {path}")
     else:
         console.print("[yellow]Note discarded.[/yellow]")
+
+
+@app.command("list")
+def list_notes(
+    limit: int = typer.Option(10, "--limit", "-n", help="Number of notes to show"),
+    folder: str = typer.Option("Journal", "--folder", "-f", help="Folder to list"),
+) -> None:
+    """List recent journal notes."""
+    cfg = Config.load()
+    from obsidian_journal import vault
+
+    notes = vault.list_journal_notes(cfg, folder=folder, limit=limit)
+    if not notes:
+        console.print(f"[yellow]No notes found in {folder}/[/yellow]")
+        raise typer.Exit()
+
+    console.print(f"\n[bold]Recent notes in {folder}/[/bold]\n")
+    for note in notes:
+        date = note.frontmatter.date or "no date"
+        # Strip date prefix from title for display
+        title = note.title
+        if title.startswith(date):
+            title = title[len(date):].lstrip(" -")
+        tags = ", ".join(note.frontmatter.tags) if note.frontmatter.tags else ""
+        tag_str = f"  [dim]({tags})[/dim]" if tags else ""
+        console.print(f"  {date}  {title}{tag_str}")
+    console.print()
 
 
 @organize_app.command("links")

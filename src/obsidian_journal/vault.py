@@ -71,6 +71,22 @@ def move_note(config: Config, src_rel: Path | str, dest_rel: Path | str) -> Path
     return dest
 
 
+def list_journal_notes(
+    config: Config, folder: str = "Journal", limit: int = 10
+) -> list[Note]:
+    folder_path = config.vault_path / folder
+    if not folder_path.is_dir():
+        return []
+    md_files = sorted(folder_path.glob("*.md"), reverse=True)
+    notes: list[Note] = []
+    for md_file in md_files[:limit]:
+        rel = md_file.relative_to(config.vault_path)
+        note = read_note(config, rel)
+        if note:
+            notes.append(note)
+    return notes
+
+
 def get_all_note_titles(config: Config) -> list[str]:
     titles: list[str] = []
     for md_file in sorted(config.vault_path.rglob("*.md")):

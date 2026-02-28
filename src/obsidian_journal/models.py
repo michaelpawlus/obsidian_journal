@@ -9,6 +9,8 @@ class ReflectionType(str, Enum):
     END_OF_DAY = "end-of-day"
     END_OF_PROJECT = "end-of-project"
     PODCAST = "podcast"
+    MEETING = "meeting"
+    READING = "reading"
     FREE_FORM = "free-form"
 
 

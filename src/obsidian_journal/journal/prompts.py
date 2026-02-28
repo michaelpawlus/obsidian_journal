@@ -30,6 +30,16 @@ OPENING_QUESTIONS: dict[ReflectionType, str] = {
         "Let's capture your thoughts on something you listened to or watched. "
         "What was it, and what's the one idea that stuck with you most?"
     ),
+    ReflectionType.MEETING: (
+        "Let's debrief a meeting you just had. "
+        "What was the meeting about, and what was the most important thing "
+        "that came out of it?"
+    ),
+    ReflectionType.READING: (
+        "Let's capture your thoughts on something you've been reading. "
+        "What article or book is it, and what idea or passage has stuck with "
+        "you most so far?"
+    ),
     ReflectionType.FREE_FORM: (
         "What's on your mind? Share whatever you'd like to explore or think through, "
         "and I'll help you dig deeper."

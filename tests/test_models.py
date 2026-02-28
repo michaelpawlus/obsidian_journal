@@ -3,7 +3,16 @@ from obsidian_journal.models import Frontmatter, Note, ReflectionType
 
 def test_reflection_type_values():
     assert ReflectionType.END_OF_DAY.value == "end-of-day"
+    assert ReflectionType.MEETING.value == "meeting"
+    assert ReflectionType.READING.value == "reading"
     assert ReflectionType.FREE_FORM.value == "free-form"
+
+
+def test_all_reflection_types_have_opening_questions():
+    from obsidian_journal.journal.prompts import OPENING_QUESTIONS
+
+    for rt in ReflectionType:
+        assert rt in OPENING_QUESTIONS, f"Missing opening question for {rt.name}"
 
 
 def test_frontmatter_to_dict_minimal():

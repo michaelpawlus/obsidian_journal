@@ -4,7 +4,13 @@ import pytest
 
 from obsidian_journal.config import Config
 from obsidian_journal.models import Frontmatter, Note
-from obsidian_journal.vault import list_notes, read_note, write_note, get_all_note_titles
+from obsidian_journal.vault import (
+    list_notes,
+    list_journal_notes,
+    read_note,
+    write_note,
+    get_all_note_titles,
+)
 
 
 @pytest.fixture
@@ -75,3 +81,46 @@ def test_get_all_note_titles(config):
     assert "Root Note" in titles
     assert "2026-01-15" in titles
     assert "config" not in titles
+
+
+@pytest.fixture
+def vault_with_journal(tmp_path):
+    """Create a vault with journal notes for list_journal_notes tests."""
+    journal = tmp_path / "Journal"
+    journal.mkdir()
+    (journal / "2026-01-10 Morning thoughts.md").write_text(
+        "---\ndate: '2026-01-10'\ntags:\n  - morning\n---\nContent A\n"
+    )
+    (journal / "2026-01-15 Project retro.md").write_text(
+        "---\ndate: '2026-01-15'\ntags:\n  - work\n---\nContent B\n"
+    )
+    (journal / "2026-01-20 Evening reflection.md").write_text(
+        "---\ndate: '2026-01-20'\ntags:\n  - evening\n---\nContent C\n"
+    )
+    return tmp_path
+
+
+@pytest.fixture
+def journal_config(vault_with_journal):
+    return Config(vault_path=vault_with_journal, anthropic_api_key="test-key")
+
+
+def test_list_journal_notes_reverse_order(journal_config):
+    notes = list_journal_notes(journal_config)
+    titles = [n.title for n in notes]
+    assert titles == [
+        "2026-01-20 Evening reflection",
+        "2026-01-15 Project retro",
+        "2026-01-10 Morning thoughts",
+    ]
+
+
+def test_list_journal_notes_limit(journal_config):
+    notes = list_journal_notes(journal_config, limit=2)
+    assert len(notes) == 2
+    assert notes[0].title == "2026-01-20 Evening reflection"
+
+
+def test_list_journal_notes_missing_folder(journal_config):
+    notes = list_journal_notes(journal_config, folder="NonExistent")
+    assert notes == []
