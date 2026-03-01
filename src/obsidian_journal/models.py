@@ -52,3 +52,16 @@ class Note:
 class ConversationMessage:
     role: str  # "user" or "assistant"
     content: str
+
+
+@dataclass
+class WeatherInfo:
+    temperature_high_f: float
+    temperature_low_f: float
+    condition: str
+    precipitation_chance: int
+    wind_speed_mph: float
+    sunrise: str
+    sunset: str
+    best_outdoor_window: str
+    summary: str

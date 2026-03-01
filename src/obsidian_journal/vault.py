@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import Path
 
@@ -95,3 +96,42 @@ def get_all_note_titles(config: Config) -> list[str]:
             continue
         titles.append(md_file.stem)
     return titles
+
+
+def read_daily_note(config: Config, date_str: str) -> Note | None:
+    """Read an existing daily note for the given date (YYYY-MM-DD)."""
+    rel_path = Path(config.daily_notes_folder) / f"{date_str}.md"
+    return read_note(config, rel_path)
+
+
+def write_daily_plan(config: Config, date_str: str, plan_markdown: str) -> Path:
+    """Create or append a daily plan section to today's daily note.
+
+    If the file doesn't exist, create it with frontmatter and the plan body.
+    If it exists without a ## Plan section, append the plan.
+    If it exists with a ## Plan section, replace that section.
+    """
+    folder_path = config.vault_path / config.daily_notes_folder
+    folder_path.mkdir(parents=True, exist_ok=True)
+    dest = folder_path / f"{date_str}.md"
+
+    if dest.exists():
+        existing_content = dest.read_text(encoding="utf-8")
+        if "## Plan" in existing_content:
+            # Replace existing plan section (from ## Plan to next ## or EOF)
+            pattern = r"## Plan\n.*?(?=\n## |\Z)"
+            updated = re.sub(pattern, plan_markdown, existing_content, count=1, flags=re.DOTALL)
+            dest.write_text(updated, encoding="utf-8")
+        else:
+            dest.write_text(
+                existing_content.rstrip() + "\n\n" + plan_markdown + "\n",
+                encoding="utf-8",
+            )
+    else:
+        post = fm.Post(plan_markdown)
+        post["date"] = date_str
+        post["type"] = "daily-note"
+        post["tags"] = ["daily"]
+        dest.write_text(fm.dumps(post), encoding="utf-8")
+
+    return dest

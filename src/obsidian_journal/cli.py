@@ -79,6 +79,71 @@ def journal(
         console.print("[yellow]Note discarded.[/yellow]")
 
 
+@app.command()
+def plan(
+    quick: str | None = typer.Option(
+        None, "--quick", "-q", help="Quick plan — list tasks, skip conversation"
+    ),
+) -> None:
+    """Create a structured daily plan for today."""
+    from datetime import date
+
+    cfg = Config.load()
+    today = date.today().isoformat()
+    console.print(f"\n[bold green]Planning your day: {today}[/bold green]")
+
+    # Fetch weather (graceful failure)
+    weather = None
+    if cfg.location_lat is not None and cfg.location_lon is not None:
+        from obsidian_journal.plan.weather import fetch_weather
+
+        console.print("[dim]Checking weather...[/dim]")
+        weather = fetch_weather(cfg.location_lat, cfg.location_lon)
+        if weather:
+            console.print(f"[dim]Weather: {weather.summary}[/dim]")
+        else:
+            console.print("[dim]Could not fetch weather — continuing without it.[/dim]")
+    else:
+        console.print(
+            "[dim]No location set — skipping weather. "
+            "Set OJ_LOCATION_LAT and OJ_LOCATION_LON for weather-aware planning.[/dim]"
+        )
+
+    from obsidian_journal.plan.capture import run_plan_conversation
+    from obsidian_journal.plan.synthesize import synthesize_plan
+    from obsidian_journal import vault
+    from obsidian_journal.models import ConversationMessage
+
+    # Check for existing daily note content
+    existing_note = vault.read_daily_note(cfg, today)
+    existing_content = existing_note.body if existing_note else None
+
+    # Run conversation or use quick capture
+    if quick is not None:
+        messages = [ConversationMessage(role="user", content=quick)]
+    else:
+        messages = run_plan_conversation(cfg, weather, existing_content)
+
+    if not any(m.role == "user" for m in messages):
+        console.print("[yellow]No input captured. Exiting.[/yellow]")
+        raise typer.Exit()
+
+    # Synthesize plan
+    console.print("\n[dim]Building your daily plan...[/dim]\n")
+    plan_markdown = synthesize_plan(cfg, messages, weather, today)
+
+    # Preview
+    console.print(Markdown(plan_markdown))
+    console.print()
+
+    # Confirm save
+    if typer.confirm("Save this plan to your daily note?", default=True):
+        path = vault.write_daily_plan(cfg, today, plan_markdown)
+        console.print(f"\n[bold green]Saved:[/bold green] {path}")
+    else:
+        console.print("[yellow]Plan discarded.[/yellow]")
+
+
 @app.command("list")
 def list_notes(
     limit: int = typer.Option(10, "--limit", "-n", help="Number of notes to show"),
@@ -182,6 +247,11 @@ def config_show() -> None:
         console.print(f"[bold]API key:[/bold]    {'*' * 8}...{cfg.anthropic_api_key[-4:]}")
         console.print(f"[bold]Model:[/bold]      {cfg.model}")
         console.print(f"[bold]Max rounds:[/bold] {cfg.max_rounds}")
+        if cfg.location_lat is not None:
+            console.print(f"[bold]Location:[/bold]   {cfg.location_lat}, {cfg.location_lon}")
+        else:
+            console.print("[bold]Location:[/bold]   (not set)")
+        console.print(f"[bold]Daily folder:[/bold] {cfg.daily_notes_folder}")
     except ValueError as e:
         console.print(f"[red]Configuration error:[/red] {e}")
         raise typer.Exit(1)
