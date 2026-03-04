@@ -47,6 +47,15 @@ class Note:
     def filename(self) -> str:
         return f"{self.title}.md"
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "title": self.title,
+            "folder": self.folder,
+            "filename": self.filename,
+            "frontmatter": self.frontmatter.to_dict(),
+            "body": self.body,
+        }
+
 
 @dataclass
 class ConversationMessage:
@@ -65,3 +74,16 @@ class WeatherInfo:
     sunset: str
     best_outdoor_window: str
     summary: str
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "temperature_high_f": self.temperature_high_f,
+            "temperature_low_f": self.temperature_low_f,
+            "condition": self.condition,
+            "precipitation_chance": self.precipitation_chance,
+            "wind_speed_mph": self.wind_speed_mph,
+            "sunrise": self.sunrise,
+            "sunset": self.sunset,
+            "best_outdoor_window": self.best_outdoor_window,
+            "summary": self.summary,
+        }

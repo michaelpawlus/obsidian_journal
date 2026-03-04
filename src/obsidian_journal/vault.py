@@ -98,6 +98,41 @@ def get_all_note_titles(config: Config) -> list[str]:
     return titles
 
 
+def search_notes(
+    config: Config,
+    *,
+    folder: str | None = None,
+    note_type: str | None = None,
+    tags: list[str] | None = None,
+    since: str | None = None,
+    until: str | None = None,
+    text: str | None = None,
+    limit: int | None = None,
+) -> list[Note]:
+    notes = list_notes(config)
+    if folder:
+        notes = [n for n in notes if n.folder == folder]
+    if note_type:
+        notes = [n for n in notes if n.frontmatter.type == note_type]
+    if tags:
+        notes = [n for n in notes if any(t in n.frontmatter.tags for t in tags)]
+    if since:
+        notes = [n for n in notes if n.frontmatter.date >= since]
+    if until:
+        notes = [n for n in notes if n.frontmatter.date and n.frontmatter.date <= until]
+    if text:
+        text_lower = text.lower()
+        notes = [
+            n for n in notes
+            if text_lower in n.title.lower() or text_lower in n.body.lower()
+        ]
+    # Sort by date descending (notes without dates sort last)
+    notes.sort(key=lambda n: n.frontmatter.date or "", reverse=True)
+    if limit:
+        notes = notes[:limit]
+    return notes
+
+
 def read_daily_note(config: Config, date_str: str) -> Note | None:
     """Read an existing daily note for the given date (YYYY-MM-DD)."""
     rel_path = Path(config.daily_notes_folder) / f"{date_str}.md"

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import sys
+
 import typer
 from rich.console import Console
 from rich.markdown import Markdown
+from rich.table import Table
 
 from obsidian_journal.config import Config
 from obsidian_journal.models import ReflectionType
+from obsidian_journal.output import emit_json, emit_error
 
 app = typer.Typer(name="oj", help="Obsidian Journal — agentic capture & vault organizer")
 organize_app = typer.Typer(help="Organize your Obsidian vault")
@@ -13,7 +17,17 @@ config_app = typer.Typer(help="View and set configuration")
 app.add_typer(organize_app, name="organize")
 app.add_typer(config_app, name="config")
 
-console = Console()
+console = Console(stderr=True)
+
+json_mode: bool = False
+
+
+@app.callback()
+def main(
+    json: bool = typer.Option(False, "--json", help="Emit JSON output for agent consumption"),
+) -> None:
+    global json_mode
+    json_mode = json
 
 
 @app.command()
@@ -32,6 +46,8 @@ def journal(
     if type is None and quick is not None:
         type = ReflectionType.FREE_FORM
     elif type is None:
+        if json_mode:
+            emit_error("--type is required when using --json", 1)
         console.print("\n[bold]Choose a reflection type:[/bold]\n")
         for i, rt in enumerate(ReflectionType, 1):
             console.print(f"  {i}. {rt.value}")
@@ -50,9 +66,13 @@ def journal(
     if quick is not None:
         messages = [ConversationMessage(role="user", content=quick)]
     else:
+        if json_mode:
+            emit_error("--quick is required when using --json", 1)
         messages = run_conversation(cfg, type)
 
     if not any(m.role == "user" for m in messages):
+        if json_mode:
+            emit_error("No input captured", 1)
         console.print("[yellow]No input captured. Exiting.[/yellow]")
         raise typer.Exit()
 
@@ -60,6 +80,11 @@ def journal(
     console.print("\n[dim]Synthesizing your reflection...[/dim]\n")
     existing_titles = vault.get_all_note_titles(cfg)
     note = synthesize_note(cfg, messages, type, existing_titles)
+
+    if json_mode:
+        path = vault.write_note(cfg, note)
+        emit_json({"saved": True, "path": str(path), "note": note.to_dict()})
+        raise typer.Exit()
 
     # Preview
     console.print(f"[bold]Title:[/bold] {note.title}")
@@ -122,15 +147,27 @@ def plan(
     if quick is not None:
         messages = [ConversationMessage(role="user", content=quick)]
     else:
+        if json_mode:
+            emit_error("--quick is required when using --json for plan", 1)
         messages = run_plan_conversation(cfg, weather, existing_content)
 
     if not any(m.role == "user" for m in messages):
+        if json_mode:
+            emit_error("No input captured", 1)
         console.print("[yellow]No input captured. Exiting.[/yellow]")
         raise typer.Exit()
 
     # Synthesize plan
     console.print("\n[dim]Building your daily plan...[/dim]\n")
     plan_markdown = synthesize_plan(cfg, messages, weather, today)
+
+    if json_mode:
+        path = vault.write_daily_plan(cfg, today, plan_markdown)
+        result: dict = {"saved": True, "path": str(path), "date": today}
+        if weather:
+            result["weather"] = weather.to_dict()
+        emit_json(result)
+        raise typer.Exit()
 
     # Preview
     console.print(Markdown(plan_markdown))
@@ -154,6 +191,11 @@ def list_notes(
     from obsidian_journal import vault
 
     notes = vault.list_journal_notes(cfg, folder=folder, limit=limit)
+
+    if json_mode:
+        emit_json([n.to_dict() for n in notes])
+        raise typer.Exit()
+
     if not notes:
         console.print(f"[yellow]No notes found in {folder}/[/yellow]")
         raise typer.Exit()
@@ -171,6 +213,96 @@ def list_notes(
     console.print()
 
 
+@app.command()
+def query(
+    type: str | None = typer.Option(None, "--type", "-t", help="Filter by note type"),
+    tags: str | None = typer.Option(None, "--tags", help="Filter by tags (comma-separated, OR logic)"),
+    since: str | None = typer.Option(None, "--since", help="Filter notes from this date (YYYY-MM-DD)"),
+    until: str | None = typer.Option(None, "--until", help="Filter notes until this date (YYYY-MM-DD)"),
+    folder: str | None = typer.Option(None, "--folder", "-f", help="Filter by folder"),
+    search: str | None = typer.Option(None, "--search", "-s", help="Text search in title and body"),
+    limit: int | None = typer.Option(None, "--limit", "-n", help="Max number of results"),
+) -> None:
+    """Query notes with structured filters. Primary entry point for agent consumption."""
+    cfg = Config.load()
+    from obsidian_journal import vault
+
+    tag_list = [t.strip() for t in tags.split(",")] if tags else None
+    notes = vault.search_notes(
+        cfg,
+        folder=folder,
+        note_type=type,
+        tags=tag_list,
+        since=since,
+        until=until,
+        text=search,
+        limit=limit,
+    )
+
+    if json_mode:
+        emit_json([n.to_dict() for n in notes])
+        raise typer.Exit()
+
+    if not notes:
+        console.print("[yellow]No matching notes found.[/yellow]")
+        raise typer.Exit(2)
+
+    table = Table(title=f"Query results ({len(notes)} notes)")
+    table.add_column("Date", style="dim")
+    table.add_column("Title")
+    table.add_column("Folder", style="dim")
+    table.add_column("Type", style="dim")
+    table.add_column("Tags", style="dim")
+    for note in notes:
+        table.add_row(
+            note.frontmatter.date or "",
+            note.title,
+            note.folder,
+            note.frontmatter.type,
+            ", ".join(note.frontmatter.tags),
+        )
+    console.print(table)
+
+
+@app.command()
+def get(
+    title: str = typer.Argument(help="Note title (exact match, then partial)"),
+) -> None:
+    """Retrieve a single note by title."""
+    cfg = Config.load()
+    from obsidian_journal import vault
+
+    all_notes = vault.list_notes(cfg)
+
+    # Exact match first
+    match = next((n for n in all_notes if n.title == title), None)
+    # Partial match fallback
+    if match is None:
+        title_lower = title.lower()
+        match = next((n for n in all_notes if title_lower in n.title.lower()), None)
+
+    if match is None:
+        if json_mode:
+            emit_error("Note not found", 2)
+        console.print(f"[red]Note not found:[/red] {title}")
+        raise typer.Exit(2)
+
+    if json_mode:
+        emit_json(match.to_dict())
+        raise typer.Exit()
+
+    console.print(f"\n[bold]Title:[/bold] {match.title}")
+    console.print(f"[bold]Folder:[/bold] {match.folder or '(root)'}")
+    if match.frontmatter.date:
+        console.print(f"[bold]Date:[/bold] {match.frontmatter.date}")
+    if match.frontmatter.type:
+        console.print(f"[bold]Type:[/bold] {match.frontmatter.type}")
+    if match.frontmatter.tags:
+        console.print(f"[bold]Tags:[/bold] {', '.join(match.frontmatter.tags)}")
+    console.print()
+    console.print(Markdown(match.body))
+
+
 @organize_app.command("links")
 def organize_links(
     apply: bool = typer.Option(False, "--apply", help="Apply changes (default: preview only)"),
@@ -182,6 +314,19 @@ def organize_links(
 
     console.print("[dim]Scanning for wikilink opportunities...[/dim]\n")
     suggestions = scan_links(cfg, deep=deep)
+
+    if json_mode:
+        data = [
+            {"note": s.note.title, "link": s.title_to_link, "context": s.context}
+            for s in suggestions
+        ]
+        if apply and suggestions:
+            count = apply_links(cfg, suggestions)
+            emit_json({"applied": count, "suggestions": data})
+        else:
+            emit_json({"applied": 0, "suggestions": data})
+        raise typer.Exit()
+
     preview_links(suggestions)
 
     if apply and suggestions:
@@ -205,6 +350,19 @@ def organize_frontmatter(
 
     console.print("[dim]Scanning frontmatter...[/dim]\n")
     suggestions = scan_frontmatter(cfg)
+
+    if json_mode:
+        data = [
+            {"note": note.title, "suggested_frontmatter": front.to_dict()}
+            for note, front in suggestions
+        ]
+        if apply and suggestions:
+            count = apply_frontmatter(cfg, suggestions)
+            emit_json({"applied": count, "suggestions": data})
+        else:
+            emit_json({"applied": 0, "suggestions": data})
+        raise typer.Exit()
+
     preview_frontmatter(suggestions)
 
     if apply and suggestions:
@@ -229,6 +387,24 @@ def organize_structure(
 
     console.print("[dim]Analyzing vault structure...[/dim]\n")
     suggestions = scan_structure(cfg, deep=deep)
+
+    if json_mode:
+        data = [
+            {
+                "note": s.note.title,
+                "current_folder": s.current_folder,
+                "suggested_folder": s.suggested_folder,
+                "reason": s.reason,
+            }
+            for s in suggestions
+        ]
+        if apply and suggestions:
+            count = apply_structure(cfg, suggestions)
+            emit_json({"applied": count, "suggestions": data})
+        else:
+            emit_json({"applied": 0, "suggestions": data})
+        raise typer.Exit()
+
     preview_structure(suggestions)
 
     if apply and suggestions:
@@ -243,18 +419,33 @@ def config_show() -> None:
     """Show current configuration."""
     try:
         cfg = Config.load()
-        console.print(f"[bold]Vault path:[/bold]  {cfg.vault_path}")
-        console.print(f"[bold]API key:[/bold]    {'*' * 8}...{cfg.anthropic_api_key[-4:]}")
-        console.print(f"[bold]Model:[/bold]      {cfg.model}")
-        console.print(f"[bold]Max rounds:[/bold] {cfg.max_rounds}")
-        if cfg.location_lat is not None:
-            console.print(f"[bold]Location:[/bold]   {cfg.location_lat}, {cfg.location_lon}")
-        else:
-            console.print("[bold]Location:[/bold]   (not set)")
-        console.print(f"[bold]Daily folder:[/bold] {cfg.daily_notes_folder}")
     except ValueError as e:
+        if json_mode:
+            emit_error(str(e), 1)
         console.print(f"[red]Configuration error:[/red] {e}")
         raise typer.Exit(1)
+
+    if json_mode:
+        emit_json({
+            "vault_path": str(cfg.vault_path),
+            "api_key": f"{'*' * 8}...{cfg.anthropic_api_key[-4:]}",
+            "model": cfg.model,
+            "max_rounds": cfg.max_rounds,
+            "location_lat": cfg.location_lat,
+            "location_lon": cfg.location_lon,
+            "daily_notes_folder": cfg.daily_notes_folder,
+        })
+        raise typer.Exit()
+
+    console.print(f"[bold]Vault path:[/bold]  {cfg.vault_path}")
+    console.print(f"[bold]API key:[/bold]    {'*' * 8}...{cfg.anthropic_api_key[-4:]}")
+    console.print(f"[bold]Model:[/bold]      {cfg.model}")
+    console.print(f"[bold]Max rounds:[/bold] {cfg.max_rounds}")
+    if cfg.location_lat is not None:
+        console.print(f"[bold]Location:[/bold]   {cfg.location_lat}, {cfg.location_lon}")
+    else:
+        console.print("[bold]Location:[/bold]   (not set)")
+    console.print(f"[bold]Daily folder:[/bold] {cfg.daily_notes_folder}")
 
 
 @config_app.command("set")
