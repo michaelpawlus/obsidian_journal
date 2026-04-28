@@ -34,6 +34,8 @@ def list_notes(config: Config) -> list[Note]:
 
 
 def read_note(config: Config, rel_path: Path | str) -> Note | None:
+    from datetime import datetime, timezone
+
     rel_path = Path(rel_path)
     full_path = config.vault_path / rel_path
     if not full_path.exists():
@@ -52,7 +54,15 @@ def read_note(config: Config, rel_path: Path | str) -> Note | None:
     )
     folder = str(rel_path.parent) if rel_path.parent != Path(".") else ""
     title = rel_path.stem
-    return Note(title=title, body=post.content, frontmatter=front, folder=folder)
+    mtime = datetime.fromtimestamp(full_path.stat().st_mtime, tz=timezone.utc)
+    return Note(
+        title=title,
+        body=post.content,
+        frontmatter=front,
+        folder=folder,
+        path=str(rel_path),
+        modified_at=mtime.isoformat(),
+    )
 
 
 def write_note(config: Config, note: Note) -> Path:

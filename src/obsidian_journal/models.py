@@ -42,18 +42,36 @@ class Note:
     body: str
     frontmatter: Frontmatter = field(default_factory=Frontmatter)
     folder: str = ""
+    path: str = ""  # Relative path within the vault, e.g. "Journal/2026-04-27 Foo.md"
+    modified_at: str = ""  # ISO-8601 mtime, populated by vault loaders
 
     @property
     def filename(self) -> str:
         return f"{self.title}.md"
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "title": self.title,
             "folder": self.folder,
             "filename": self.filename,
             "frontmatter": self.frontmatter.to_dict(),
             "body": self.body,
+        }
+        if self.path:
+            d["path"] = self.path
+        if self.modified_at:
+            d["modified_at"] = self.modified_at
+        return d
+
+    def to_summary_dict(self) -> dict[str, Any]:
+        """Slim shape for `oj list --json`: path, title, modified_at, tags."""
+        return {
+            "path": self.path,
+            "title": self.title,
+            "modified_at": self.modified_at,
+            "tags": list(self.frontmatter.tags),
+            "date": self.frontmatter.date,
+            "type": self.frontmatter.type,
         }
 
 

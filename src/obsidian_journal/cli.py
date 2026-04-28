@@ -30,6 +30,13 @@ def main(
     json_mode = json
 
 
+def say(*args, **kwargs) -> None:
+    """Print to stderr, but suppressed entirely under --json."""
+    if json_mode:
+        return
+    console.print(*args, **kwargs)
+
+
 @app.command()
 def journal(
     type: ReflectionType | None = typer.Option(
@@ -40,14 +47,16 @@ def journal(
     ),
 ) -> None:
     """Start an agentic journal capture session."""
+    # In --json mode, --quick is required (no interactive path).
+    if json_mode and quick is None:
+        emit_error("--quick is required when using --json", 2)
+
     cfg = Config.load()
 
     # Type picker if not provided (default to FREE_FORM for quick capture)
     if type is None and quick is not None:
         type = ReflectionType.FREE_FORM
     elif type is None:
-        if json_mode:
-            emit_error("--type is required when using --json", 1)
         console.print("\n[bold]Choose a reflection type:[/bold]\n")
         for i, rt in enumerate(ReflectionType, 1):
             console.print(f"  {i}. {rt.value}")
@@ -55,7 +64,7 @@ def journal(
         choice = typer.prompt("Selection", type=int)
         type = list(ReflectionType)[choice - 1]
 
-    console.print(f"\n[bold green]Starting {type.value} reflection...[/bold green]")
+    say(f"\n[bold green]Starting {type.value} reflection...[/bold green]")
 
     from obsidian_journal.journal.capture import run_conversation
     from obsidian_journal.journal.synthesize import synthesize_note
@@ -66,24 +75,32 @@ def journal(
     if quick is not None:
         messages = [ConversationMessage(role="user", content=quick)]
     else:
-        if json_mode:
-            emit_error("--quick is required when using --json", 1)
         messages = run_conversation(cfg, type)
 
     if not any(m.role == "user" for m in messages):
         if json_mode:
-            emit_error("No input captured", 1)
+            emit_error("No input captured", 2)
         console.print("[yellow]No input captured. Exiting.[/yellow]")
         raise typer.Exit()
 
     # Synthesize note
-    console.print("\n[dim]Synthesizing your reflection...[/dim]\n")
+    say("\n[dim]Synthesizing your reflection...[/dim]\n")
     existing_titles = vault.get_all_note_titles(cfg)
     note = synthesize_note(cfg, messages, type, existing_titles)
 
     if json_mode:
-        path = vault.write_note(cfg, note)
-        emit_json({"saved": True, "path": str(path), "note": note.to_dict()})
+        full_path = vault.write_note(cfg, note)
+        rel_path = str(full_path.relative_to(cfg.vault_path))
+        emit_json({
+            "path": rel_path,
+            "absolute_path": str(full_path),
+            "title": note.title,
+            "tags": list(note.frontmatter.tags),
+            "frontmatter": note.frontmatter.to_dict(),
+            "related": list(note.frontmatter.related),
+            "folder": note.folder,
+            "body": note.body,
+        })
         raise typer.Exit()
 
     # Preview
@@ -113,23 +130,26 @@ def plan(
     """Create a structured daily plan for today."""
     from datetime import date
 
+    if json_mode and quick is None:
+        emit_error("--quick is required when using --json", 2)
+
     cfg = Config.load()
     today = date.today().isoformat()
-    console.print(f"\n[bold green]Planning your day: {today}[/bold green]")
+    say(f"\n[bold green]Planning your day: {today}[/bold green]")
 
     # Fetch weather (graceful failure)
     weather = None
     if cfg.location_lat is not None and cfg.location_lon is not None:
         from obsidian_journal.plan.weather import fetch_weather
 
-        console.print("[dim]Checking weather...[/dim]")
+        say("[dim]Checking weather...[/dim]")
         weather = fetch_weather(cfg.location_lat, cfg.location_lon)
         if weather:
-            console.print(f"[dim]Weather: {weather.summary}[/dim]")
+            say(f"[dim]Weather: {weather.summary}[/dim]")
         else:
-            console.print("[dim]Could not fetch weather — continuing without it.[/dim]")
+            say("[dim]Could not fetch weather — continuing without it.[/dim]")
     else:
-        console.print(
+        say(
             "[dim]No location set — skipping weather. "
             "Set OJ_LOCATION_LAT and OJ_LOCATION_LON for weather-aware planning.[/dim]"
         )
@@ -147,25 +167,36 @@ def plan(
     if quick is not None:
         messages = [ConversationMessage(role="user", content=quick)]
     else:
-        if json_mode:
-            emit_error("--quick is required when using --json for plan", 1)
         messages = run_plan_conversation(cfg, weather, existing_content)
 
     if not any(m.role == "user" for m in messages):
         if json_mode:
-            emit_error("No input captured", 1)
+            emit_error("No input captured", 2)
         console.print("[yellow]No input captured. Exiting.[/yellow]")
         raise typer.Exit()
 
     # Synthesize plan
-    console.print("\n[dim]Building your daily plan...[/dim]\n")
+    say("\n[dim]Building your daily plan...[/dim]\n")
     plan_markdown = synthesize_plan(cfg, messages, weather, today)
 
     if json_mode:
-        path = vault.write_daily_plan(cfg, today, plan_markdown)
-        result: dict = {"saved": True, "path": str(path), "date": today}
-        if weather:
-            result["weather"] = weather.to_dict()
+        full_path = vault.write_daily_plan(cfg, today, plan_markdown)
+        rel_path = str(full_path.relative_to(cfg.vault_path))
+        from obsidian_journal.plan.parse import parse_blocks
+
+        result: dict = {
+            "path": rel_path,
+            "absolute_path": str(full_path),
+            "date": today,
+            "frontmatter": {
+                "date": today,
+                "type": "daily-note",
+                "tags": ["daily"],
+            },
+            "blocks": parse_blocks(plan_markdown),
+            "markdown": plan_markdown,
+            "weather": weather.to_dict() if weather else None,
+        }
         emit_json(result)
         raise typer.Exit()
 
@@ -193,7 +224,7 @@ def list_notes(
     notes = vault.list_journal_notes(cfg, folder=folder, limit=limit)
 
     if json_mode:
-        emit_json([n.to_dict() for n in notes])
+        emit_json({"folder": folder, "count": len(notes), "items": [n.to_summary_dict() for n in notes]})
         raise typer.Exit()
 
     if not notes:
@@ -240,7 +271,7 @@ def query(
     )
 
     if json_mode:
-        emit_json([n.to_dict() for n in notes])
+        emit_json({"count": len(notes), "items": [n.to_dict() for n in notes]})
         raise typer.Exit()
 
     if not notes:
