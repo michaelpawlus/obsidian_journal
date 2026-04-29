@@ -27,6 +27,7 @@ This is the one personal-use project that is **API-driven** (uses `ANTHROPIC_API
 |---|---|---|
 | `oj journal [-t TYPE] [-q TEXT] [--json]` | Guided reflection capture | Writes `Journal/YYYY-MM-DD <title>.md` |
 | `oj plan [-q TEXT] [--json]` | Time-blocked daily plan w/ optional weather | Writes `Daily Notes/YYYY-MM-DD.md` |
+| `oj spec -q TEXT [--title …] [--complexity …] [--priority …] [--related …] [--tag …] [--source …] [--status …] [--folder …] [--json]` | Synthesize a project / feature spec note | Writes `Project Ideas/<slug>-spec.md` |
 | `oj list [-n N] [-f FOLDER] [--json]` | Recent notes in a folder | Read |
 | `oj query [--type T] [--tags …] [--since …] [--until …] [--folder …] [--search …] [-n N] [--json]` | Structured search across the vault | Read |
 | `oj get TITLE [--json]` | Fetch a single note by title (exact, then partial) | Read |
@@ -39,7 +40,7 @@ This is the one personal-use project that is **API-driven** (uses `ANTHROPIC_API
 ## Always-callable agent surface
 
 - Pass `--json` (top-level flag, before the subcommand: `oj --json list`) on **every** command for structured output.
-- In `--json` mode, `journal` and `plan` **require** `-q TEXT` — interactive prompts are disabled and exit `2` with `{"error": "--quick is required when using --json", "code": 2}`.
+- In `--json` mode, `journal`, `plan`, and `spec` **require** `-q TEXT` — interactive prompts are disabled and exit `2` with `{"error": "--quick is required when using --json", "code": 2}`.
 - Stdout = JSON only. Stderr = silent on success, human errors otherwise.
 - Exit codes: `0` ok, `1` general error (e.g. config/env missing), `2` bad input / not found.
 
@@ -54,14 +55,14 @@ This is the one personal-use project that is **API-driven** (uses `ANTHROPIC_API
 | `OJ_LOCATION_LAT` / `OJ_LOCATION_LON` | no | unset | Enables weather-aware planning |
 | `OJ_DAILY_NOTES_FOLDER` | no | `Daily Notes` | |
 
-## JSON contract (v0.2)
+## JSON contract (v0.3)
 
-Every JSON object includes `"_oj_version": "0.2"`. Bump this in `output.py:OJ_VERSION` when the shape changes; downstream callers should pin against it.
+Every JSON object includes `"_oj_version": "0.3"`. Bump this in `output.py:OJ_VERSION` when the shape changes; downstream callers should pin against it.
 
 ```jsonc
 // oj --json journal -t end-of-day -q "..."
 {
-  "_oj_version": "0.2",
+  "_oj_version": "0.3",
   "path": "Journal/2026-04-27 Career growth chat.md",  // relative to vault
   "absolute_path": "/.../Obsidian Vault/Journal/...md",
   "title": "2026-04-27 Career growth chat",
@@ -74,7 +75,7 @@ Every JSON object includes `"_oj_version": "0.2"`. Bump this in `output.py:OJ_VE
 
 // oj --json plan -q "..."
 {
-  "_oj_version": "0.2",
+  "_oj_version": "0.3",
   "path": "Daily Notes/2026-04-27.md",
   "absolute_path": "...",
   "date": "2026-04-27",
@@ -86,9 +87,28 @@ Every JSON object includes `"_oj_version": "0.2"`. Bump this in `output.py:OJ_VE
   "weather": {"temperature_high_f": 72.0, "summary": "...", ...} | null
 }
 
+// oj --json spec -q "..." [--complexity ...] [--priority ...] [--related ...] [--tag ...] [--source ...] [--status ...] [--folder ...] [--title ...]
+{
+  "_oj_version": "0.3",
+  "path": "Project Ideas/oj-spec-subcommand-spec.md",
+  "absolute_path": "/.../Obsidian Vault/Project Ideas/...md",
+  "title": "oj spec Subcommand",
+  "folder": "Project Ideas",
+  "frontmatter": {
+    "date": "2026-04-28",
+    "tags": ["project-idea", "spec", "oj", "active"],
+    "related": ["..."],
+    "status": "planning",
+    "complexity": "S",
+    "priority": "medium",
+    "source": "code-daily nightly rundown 2026-04-28"
+  },
+  "body": "..."  // synthesized spec body (no leading H1)
+}
+
 // oj --json list  (and oj --json query)
 {
-  "_oj_version": "0.2",
+  "_oj_version": "0.3",
   "folder": "Journal",         // list only
   "count": 12,
   "items": [
@@ -100,7 +120,7 @@ Every JSON object includes `"_oj_version": "0.2"`. Bump this in `output.py:OJ_VE
 // oj --json get TITLE  →  full Note dict (path, title, folder, filename, frontmatter, body, modified_at)
 // oj --json config show  →  {vault_path, model, max_rounds, location_lat/lon, daily_notes_folder, api_key (masked)}
 // oj --json organize {links|frontmatter|structure}  →  {applied: int, suggestions: [...]}
-// errors  →  {"_oj_version": "0.2", "error": "...", "code": 1|2}
+// errors  →  {"_oj_version": "0.3", "error": "...", "code": 1|2}
 ```
 
 Lists are wrapped (`{items: [...]}`) rather than emitted as bare arrays so every payload has `_oj_version` for shape pinning.
@@ -133,6 +153,18 @@ oj --json journal -t end-of-day \
   | jq -r '.path'
 ```
 
+### `code-daily` memorializes an enhancement as a spec
+
+```bash
+oj --json spec \
+  -q "Add a doctor subcommand to conductor that checks every registered project's CLI is callable and its --json contract is honored." \
+  --complexity M --priority high --tag conductor \
+  --source "code-daily nightly rundown 2026-04-28" \
+  | jq -r '.path'   # → "Project Ideas/<slug>-spec.md"
+```
+
+This replaces side-channeling specs into `Project Ideas/` from agent code; the writer-of-record owns the frontmatter and slug shape.
+
 ## What `oj` is **not**
 
 - **Not** a vault search engine for fuzzy/semantic queries — `query` is structured-filter only. Heavy retrieval should live in a future `oj search` command, not in callers.
@@ -143,11 +175,13 @@ oj --json journal -t end-of-day \
 
 - `src/obsidian_journal/cli.py` — Typer app. All commands; `--json` is a top-level callback flag setting `cli.json_mode`.
 - `src/obsidian_journal/output.py` — `emit_json` / `emit_error` / `OJ_VERSION`. The single place all JSON leaves the process.
-- `src/obsidian_journal/models.py` — `Note`, `Frontmatter`, `ReflectionType`, `WeatherInfo`. `Note.to_summary_dict()` is the slim `list` shape.
-- `src/obsidian_journal/vault.py` — read/write/search. Populates `Note.path` and `Note.modified_at`.
+- `src/obsidian_journal/models.py` — `Note`, `SpecNote`, `Frontmatter`, `ReflectionType`, `WeatherInfo`. `Note.to_summary_dict()` is the slim `list` shape.
+- `src/obsidian_journal/vault.py` — read/write/search. Populates `Note.path` and `Note.modified_at`. `write_spec` handles slug + `-2`, `-3` collision suffixing.
 - `src/obsidian_journal/journal/synthesize.py` — Anthropic call for journal notes.
 - `src/obsidian_journal/plan/synthesize.py` — Anthropic call for plans.
 - `src/obsidian_journal/plan/parse.py` — block parser for `--json` plan output.
+- `src/obsidian_journal/spec/synthesize.py` — Anthropic call for spec notes (single round, six required sections). `slug_for_title` lives here.
+- `src/obsidian_journal/spec/prompt.py` — system prompt enforcing the canonical six-section spec structure.
 
 ## Roadmap
 

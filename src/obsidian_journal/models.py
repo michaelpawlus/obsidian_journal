@@ -76,6 +76,32 @@ class Note:
 
 
 @dataclass
+class SpecNote(Note):
+    """A project-idea / feature spec written by `oj spec`.
+
+    Spec-specific fields live on the dataclass; they're mirrored into
+    `frontmatter.extra` at write time so they round-trip through `Frontmatter.to_dict()`.
+    """
+
+    complexity: str = ""
+    priority: str = ""
+    status: str = ""
+    source: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        d = super().to_dict()
+        if self.complexity:
+            d["complexity"] = self.complexity
+        if self.priority:
+            d["priority"] = self.priority
+        if self.status:
+            d["status"] = self.status
+        if self.source:
+            d["source"] = self.source
+        return d
+
+
+@dataclass
 class ConversationMessage:
     role: str  # "user" or "assistant"
     content: str

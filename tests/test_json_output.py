@@ -40,7 +40,7 @@ def test_list_json_emits_valid_json_with_version(runner: CliRunner):
     result = runner.invoke(cli.app, ["--json", "list"])
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    assert payload["_oj_version"] == "0.2"
+    assert payload["_oj_version"] == "0.3"
     assert payload["folder"] == "Journal"
     assert payload["count"] == 2
     items = payload["items"]
@@ -64,7 +64,7 @@ def test_query_json_filters_and_versions(runner: CliRunner):
     result = runner.invoke(cli.app, ["--json", "query", "--type", "meeting"])
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    assert payload["_oj_version"] == "0.2"
+    assert payload["_oj_version"] == "0.3"
     assert payload["count"] == 1
     assert payload["items"][0]["frontmatter"]["type"] == "meeting"
 
@@ -73,7 +73,7 @@ def test_get_json_returns_full_note(runner: CliRunner):
     result = runner.invoke(cli.app, ["--json", "get", "First note"])
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    assert payload["_oj_version"] == "0.2"
+    assert payload["_oj_version"] == "0.3"
     assert payload["title"] == "2026-04-25 First note"
     assert payload["body"].startswith("First body")
     assert payload["path"].endswith("First note.md")
@@ -91,7 +91,7 @@ def test_config_show_json(runner: CliRunner):
     result = runner.invoke(cli.app, ["--json", "config", "show"])
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    assert payload["_oj_version"] == "0.2"
+    assert payload["_oj_version"] == "0.3"
     assert "vault_path" in payload
     assert "model" in payload
 
@@ -102,7 +102,7 @@ def test_journal_json_no_quick_exits_2(runner: CliRunner):
     payload = json.loads(result.stdout)
     assert "error" in payload
     assert payload["code"] == 2
-    assert payload["_oj_version"] == "0.2"
+    assert payload["_oj_version"] == "0.3"
 
 
 def test_journal_json_quick_emits_spec_keys(runner: CliRunner, monkeypatch):
@@ -125,7 +125,7 @@ def test_journal_json_quick_emits_spec_keys(runner: CliRunner, monkeypatch):
 
     assert result.exit_code == 0, (result.stdout, result.stderr)
     payload = json.loads(result.stdout)
-    assert payload["_oj_version"] == "0.2"
+    assert payload["_oj_version"] == "0.3"
     for key in ("path", "title", "tags", "frontmatter"):
         assert key in payload, f"missing {key} in {payload}"
     assert "Career growth chat" in payload["title"]
@@ -140,7 +140,7 @@ def test_plan_json_no_quick_exits_2(runner: CliRunner):
     assert result.exit_code == 2
     payload = json.loads(result.stdout)
     assert payload["code"] == 2
-    assert payload["_oj_version"] == "0.2"
+    assert payload["_oj_version"] == "0.3"
 
 
 def test_plan_json_quick_emits_spec_keys(runner: CliRunner, monkeypatch):
@@ -167,7 +167,7 @@ def test_plan_json_quick_emits_spec_keys(runner: CliRunner, monkeypatch):
 
     assert result.exit_code == 0, (result.stdout, result.stderr)
     payload = json.loads(result.stdout)
-    assert payload["_oj_version"] == "0.2"
+    assert payload["_oj_version"] == "0.3"
     for key in ("path", "frontmatter", "blocks", "weather"):
         assert key in payload, f"missing {key} in {payload}"
     assert payload["weather"] is None  # no location set
@@ -185,6 +185,6 @@ def test_organize_links_json(runner: CliRunner):
     result = runner.invoke(cli.app, ["--json", "organize", "links"])
     assert result.exit_code == 0, result.stdout
     payload = json.loads(result.stdout)
-    assert payload["_oj_version"] == "0.2"
+    assert payload["_oj_version"] == "0.3"
     assert "applied" in payload
     assert "suggestions" in payload

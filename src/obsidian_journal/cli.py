@@ -212,6 +212,134 @@ def plan(
         console.print("[yellow]Plan discarded.[/yellow]")
 
 
+def _split_csv(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [s.strip() for s in value.split(",") if s.strip()]
+
+
+@app.command()
+def spec(
+    quick: str | None = typer.Option(
+        None, "--quick", "-q", help="Brief / problem statement to expand into a spec"
+    ),
+    title: str | None = typer.Option(
+        None, "--title", help="Override the auto-generated title"
+    ),
+    complexity: str | None = typer.Option(
+        None,
+        "--complexity",
+        help="Complexity tier (S, M, L, week, multi-week)",
+    ),
+    priority: str | None = typer.Option(
+        None,
+        "--priority",
+        help="Priority (low, medium, high)",
+    ),
+    related: str | None = typer.Option(
+        None, "--related", help="Comma-separated list of related note titles"
+    ),
+    tag: str | None = typer.Option(
+        None, "--tag", help="Comma-separated extra tags (added to baseline tags)"
+    ),
+    source: str | None = typer.Option(
+        None, "--source", help="Provenance — who or what asked for this spec"
+    ),
+    status: str | None = typer.Option(
+        None, "--status", help="Spec status (default: planning)"
+    ),
+    folder: str | None = typer.Option(
+        None, "--folder", help="Override target folder (default: 'Project Ideas')"
+    ),
+) -> None:
+    """Synthesize and write a project / feature spec note."""
+    if json_mode and quick is None:
+        emit_error("--quick is required when using --json", 2)
+
+    cfg = Config.load()
+
+    brief = quick
+    if brief is None:
+        console.print("\n[bold]Describe the spec idea[/bold] (one or two paragraphs):")
+        brief = typer.prompt("Brief")
+        if not brief.strip():
+            console.print("[yellow]No brief provided. Exiting.[/yellow]")
+            raise typer.Exit()
+
+    if complexity is None:
+        complexity = "M" if json_mode else typer.prompt(
+            "Complexity (S/M/L/week/multi-week)", default="M"
+        )
+    if priority is None:
+        priority = "medium" if json_mode else typer.prompt(
+            "Priority (low/medium/high)", default="medium"
+        )
+    if status is None:
+        status = "planning"
+
+    if source is None:
+        source = " ".join(sys.argv)
+
+    target_folder = folder or "Project Ideas"
+
+    say(f"\n[bold green]Drafting spec...[/bold green]")
+
+    from obsidian_journal.spec.synthesize import synthesize_spec, slug_for_title
+    from obsidian_journal import vault
+
+    existing_titles = vault.get_all_note_titles(cfg)
+    spec_note = synthesize_spec(
+        cfg,
+        brief,
+        title_override=title,
+        complexity=complexity,
+        priority=priority,
+        status=status,
+        source=source,
+        related=_split_csv(related),
+        extra_tags=_split_csv(tag),
+        folder=target_folder,
+        existing_titles=existing_titles,
+    )
+
+    slug = slug_for_title(spec_note.title)
+
+    if json_mode:
+        full_path = vault.write_spec(cfg, spec_note, slug)
+        rel_path = str(full_path.relative_to(cfg.vault_path))
+        emit_json({
+            "path": rel_path,
+            "absolute_path": str(full_path),
+            "title": spec_note.title,
+            "folder": spec_note.folder,
+            "frontmatter": spec_note.frontmatter.to_dict(),
+            "body": spec_note.body,
+        })
+        raise typer.Exit()
+
+    # Preview
+    console.print(f"[bold]Title:[/bold] {spec_note.title}")
+    console.print(f"[bold]Folder:[/bold] {spec_note.folder}/")
+    console.print(f"[bold]Slug:[/bold] {slug}.md")
+    console.print(f"[bold]Tags:[/bold] {', '.join(spec_note.frontmatter.tags)}")
+    console.print(
+        f"[bold]Status:[/bold] {status}  "
+        f"[bold]Complexity:[/bold] {complexity}  "
+        f"[bold]Priority:[/bold] {priority}"
+    )
+    if spec_note.frontmatter.related:
+        console.print(f"[bold]Related:[/bold] {', '.join(spec_note.frontmatter.related)}")
+    console.print()
+    console.print(Markdown(spec_note.body))
+    console.print()
+
+    if typer.confirm("Save this spec to your vault?", default=True):
+        path = vault.write_spec(cfg, spec_note, slug)
+        console.print(f"\n[bold green]Saved:[/bold green] {path}")
+    else:
+        console.print("[yellow]Spec discarded.[/yellow]")
+
+
 @app.command("list")
 def list_notes(
     limit: int = typer.Option(10, "--limit", "-n", help="Number of notes to show"),

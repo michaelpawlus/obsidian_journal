@@ -4,7 +4,7 @@ import json
 import sys
 from typing import Any
 
-OJ_VERSION = "0.2"
+OJ_VERSION = "0.3"
 
 
 def _stamp(data: Any) -> Any:

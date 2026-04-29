@@ -7,7 +7,7 @@ from pathlib import Path
 import frontmatter as fm
 
 from obsidian_journal.config import Config
-from obsidian_journal.models import Frontmatter, Note
+from obsidian_journal.models import Frontmatter, Note, SpecNote
 
 SKIP_DIRS = {".obsidian", ".trash", "Templates"}
 SKIP_PREFIXES = (".smtcmp_",)
@@ -141,6 +141,26 @@ def search_notes(
     if limit:
         notes = notes[:limit]
     return notes
+
+
+def write_spec(config: Config, spec: SpecNote, slug: str) -> Path:
+    """Write a SpecNote to its folder using the given slug.
+
+    If `{slug}.md` already exists, append `-2`, `-3`, ... until a free name is
+    found (matches `oj journal` collision behavior).
+    """
+    folder = config.vault_path / spec.folder if spec.folder else config.vault_path
+    folder.mkdir(parents=True, exist_ok=True)
+
+    candidate = folder / f"{slug}.md"
+    n = 2
+    while candidate.exists():
+        candidate = folder / f"{slug}-{n}.md"
+        n += 1
+
+    post = fm.Post(spec.body, **spec.frontmatter.to_dict())
+    candidate.write_text(fm.dumps(post), encoding="utf-8")
+    return candidate
 
 
 def read_daily_note(config: Config, date_str: str) -> Note | None:
