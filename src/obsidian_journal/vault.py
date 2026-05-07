@@ -163,6 +163,36 @@ def write_spec(config: Config, spec: SpecNote, slug: str) -> Path:
     return candidate
 
 
+def write_captured(
+    vault_path: Path,
+    folder: str,
+    slug: str,
+    body: str,
+    frontmatter_dict: dict | None = None,
+) -> Path:
+    """Write a pre-rendered body into the vault without LLM synthesis.
+
+    Used by `oj capture` for cross-project artifacts (resumes, cover letters,
+    digests) that arrive already-rendered from another tool. Reuses the same
+    `-2`, `-3` collision logic as `write_spec`.
+    """
+    target_folder = vault_path / folder if folder else vault_path
+    target_folder.mkdir(parents=True, exist_ok=True)
+
+    candidate = target_folder / f"{slug}.md"
+    n = 2
+    while candidate.exists():
+        candidate = target_folder / f"{slug}-{n}.md"
+        n += 1
+
+    if frontmatter_dict:
+        post = fm.Post(body, **frontmatter_dict)
+        candidate.write_text(fm.dumps(post), encoding="utf-8")
+    else:
+        candidate.write_text(body, encoding="utf-8")
+    return candidate
+
+
 def read_daily_note(config: Config, date_str: str) -> Note | None:
     """Read an existing daily note for the given date (YYYY-MM-DD)."""
     rel_path = Path(config.daily_notes_folder) / f"{date_str}.md"

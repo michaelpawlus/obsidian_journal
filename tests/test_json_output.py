@@ -188,3 +188,115 @@ def test_organize_links_json(runner: CliRunner):
     assert payload["_oj_version"] == "0.3"
     assert "applied" in payload
     assert "suggestions" in payload
+
+
+def test_capture_json_writes_body_with_frontmatter(runner: CliRunner, vault: Path):
+    body_md = "# Resume body\n\nFooBar content.\n"
+    result = runner.invoke(
+        cli.app,
+        [
+            "--json", "capture",
+            "--title", "2026-05-06 Anthropic Resume",
+            "--folder", "Job Search/Resumes",
+            "--type", "resume",
+            "--date", "2026-05-06",
+            "--tag", "job-search",
+            "--tag", "beacon",
+            "--extra", "company=Anthropic",
+            "--extra", "role=Forward Deployed Engineer",
+            "--body", body_md,
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["_oj_version"] == "0.3"
+    assert payload["path"] == "Job Search/Resumes/2026-05-06-anthropic-resume.md"
+    assert payload["slug"] == "2026-05-06-anthropic-resume"
+    assert payload["folder"] == "Job Search/Resumes"
+    assert payload["frontmatter"]["company"] == "Anthropic"
+    assert payload["frontmatter"]["type"] == "resume"
+    assert "job-search" in payload["frontmatter"]["tags"]
+
+    # File on disk has body + frontmatter
+    written = (vault / payload["path"]).read_text(encoding="utf-8")
+    assert "FooBar content" in written
+    assert "company: Anthropic" in written
+    assert "type: resume" in written
+
+
+def test_capture_json_collision_appends_suffix(runner: CliRunner, vault: Path):
+    args = [
+        "--json", "capture",
+        "--title", "thing",
+        "--folder", "Captures",
+        "--body", "first",
+    ]
+    first = runner.invoke(cli.app, args)
+    assert first.exit_code == 0, first.stdout
+    second = runner.invoke(
+        cli.app,
+        ["--json", "capture", "--title", "thing", "--folder", "Captures", "--body", "second"],
+    )
+    assert second.exit_code == 0, second.stdout
+    p1 = json.loads(first.stdout)["path"]
+    p2 = json.loads(second.stdout)["path"]
+    assert p1 == "Captures/thing.md"
+    assert p2 == "Captures/thing-2.md"
+
+
+def test_capture_json_body_file_stdin(runner: CliRunner, vault: Path):
+    body_md = "from stdin body\n"
+    result = runner.invoke(
+        cli.app,
+        [
+            "--json", "capture",
+            "--title", "stdin-thing",
+            "--folder", "Captures",
+            "--body-file", "-",
+        ],
+        input=body_md,
+    )
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    written = (vault / payload["path"]).read_text(encoding="utf-8")
+    assert "from stdin body" in written
+
+
+def test_capture_json_requires_body(runner: CliRunner):
+    result = runner.invoke(
+        cli.app, ["--json", "capture", "--title", "x"]
+    )
+    assert result.exit_code == 2
+    payload = json.loads(result.stdout)
+    assert "body" in payload["error"].lower()
+
+
+def test_capture_json_rejects_both_body_inputs(runner: CliRunner, tmp_path: Path):
+    bf = tmp_path / "b.md"
+    bf.write_text("hi")
+    result = runner.invoke(
+        cli.app,
+        ["--json", "capture", "--title", "x", "--body-file", str(bf), "--body", "y"],
+    )
+    assert result.exit_code == 2
+    payload = json.loads(result.stdout)
+    assert "only one" in payload["error"].lower()
+
+
+def test_capture_json_rejects_bad_extra(runner: CliRunner):
+    result = runner.invoke(
+        cli.app,
+        ["--json", "capture", "--title", "x", "--body", "b", "--extra", "noequals"],
+    )
+    assert result.exit_code == 2
+    payload = json.loads(result.stdout)
+    assert "key=value" in payload["error"]
+
+
+def test_capture_does_not_require_anthropic_key(runner: CliRunner, monkeypatch, vault: Path):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    result = runner.invoke(
+        cli.app,
+        ["--json", "capture", "--title", "no-key", "--folder", "Captures", "--body", "hi"],
+    )
+    assert result.exit_code == 0, result.stdout

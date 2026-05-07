@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
+import re
 import sys
+from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -338,6 +341,123 @@ def spec(
         console.print(f"\n[bold green]Saved:[/bold green] {path}")
     else:
         console.print("[yellow]Spec discarded.[/yellow]")
+
+
+def _slugify(value: str) -> str:
+    """Lowercase-hyphenated slug for filenames (no `-spec` suffix)."""
+    s = value.lower().strip()
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    return s.strip("-")
+
+
+def _resolve_vault_path() -> Path:
+    """Resolve the vault path without requiring ANTHROPIC_API_KEY.
+
+    `oj capture` is a pure file-write — no LLM round-trip — so the full
+    `Config.load()` (which requires an API key) is overkill.
+    """
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    vault_path_str = os.environ.get("OBSIDIAN_VAULT_PATH", "")
+    if not vault_path_str:
+        emit_error("OBSIDIAN_VAULT_PATH not set in environment", 1)
+    vault_path = Path(vault_path_str)
+    if not vault_path.is_dir():
+        emit_error(f"Vault path does not exist: {vault_path}", 1)
+    return vault_path
+
+
+@app.command()
+def capture(
+    title: str = typer.Option(..., "--title", help="Title — becomes the filename base (slugified)"),
+    body_file: str | None = typer.Option(
+        None, "--body-file", help="Path to body markdown, or '-' for stdin"
+    ),
+    body: str | None = typer.Option(
+        None, "--body", help="Body string (alternative to --body-file)"
+    ),
+    folder: str = typer.Option("", "--folder", help="Target folder within the vault"),
+    type: str = typer.Option("", "--type", help="Frontmatter `type` value"),
+    date: str = typer.Option("", "--date", help="Frontmatter `date` (YYYY-MM-DD)"),
+    tag: list[str] = typer.Option(
+        None, "--tag", help="Frontmatter tag (repeatable)"
+    ),
+    related: str | None = typer.Option(
+        None, "--related", help="Comma-separated related note titles"
+    ),
+    extra: list[str] = typer.Option(
+        None,
+        "--extra",
+        help="Extra frontmatter as key=value (repeatable). Example: --extra company=Anthropic",
+    ),
+) -> None:
+    """Capture a pre-rendered markdown body into the vault.
+
+    Bypasses LLM synthesis — the body lands as-is. Use this when another tool
+    has already produced the artifact (e.g. beacon resumes, cover letters).
+    Title collisions get `-2`, `-3` ... appended.
+    """
+    if body_file is None and body is None:
+        emit_error("Must provide --body-file or --body", 2)
+    if body_file is not None and body is not None:
+        emit_error("Specify only one of --body-file or --body", 2)
+
+    if body_file is not None:
+        if body_file == "-":
+            body_text = sys.stdin.read()
+        else:
+            try:
+                body_text = Path(body_file).read_text(encoding="utf-8")
+            except FileNotFoundError:
+                emit_error(f"Body file not found: {body_file}", 2)
+    else:
+        body_text = body or ""
+
+    vault_path = _resolve_vault_path()
+
+    fm_dict: dict = {}
+    if date:
+        fm_dict["date"] = date
+    if type:
+        fm_dict["type"] = type
+    if tag:
+        fm_dict["tags"] = list(tag)
+    if related:
+        related_list = [r.strip() for r in related.split(",") if r.strip()]
+        if related_list:
+            fm_dict["related"] = related_list
+    if extra:
+        for kv in extra:
+            if "=" not in kv:
+                emit_error(f"--extra must be key=value, got: {kv!r}", 2)
+            k, v = kv.split("=", 1)
+            k = k.strip()
+            if not k:
+                emit_error(f"--extra key cannot be empty: {kv!r}", 2)
+            fm_dict[k] = v.strip()
+
+    slug = _slugify(title)
+    if not slug:
+        emit_error("Title slugified to empty string", 2)
+
+    from obsidian_journal import vault
+
+    full_path = vault.write_captured(vault_path, folder, slug, body_text, fm_dict or None)
+    rel_path = str(full_path.relative_to(vault_path))
+
+    if json_mode:
+        emit_json({
+            "path": rel_path,
+            "absolute_path": str(full_path),
+            "title": title,
+            "slug": slug,
+            "folder": folder,
+            "frontmatter": fm_dict,
+        })
+        raise typer.Exit()
+
+    say(f"\n[bold green]Saved:[/bold green] {full_path}")
 
 
 @app.command("list")
