@@ -30,6 +30,7 @@ This is the one personal-use project that is **API-driven** (uses `ANTHROPIC_API
 | `oj spec -q TEXT [--title …] [--complexity …] [--priority …] [--related …] [--tag …] [--source …] [--status …] [--folder …] [--json]` | Synthesize a project / feature spec note | Writes `Project Ideas/<slug>-spec.md` |
 | `oj list [-n N] [-f FOLDER] [--json]` | Recent notes in a folder | Read |
 | `oj query [--type T] [--tags …] [--since …] [--until …] [--folder …] [--search …] [-n N] [--json]` | Structured search across the vault | Read |
+| `oj stats [--since …] [--until …] [--folder …] [--type T] [--tags …] [--by day\|week\|month] [--top N] [--json]` | Aggregate journaling activity (tallies, timeline, streaks) | Read |
 | `oj get TITLE [--json]` | Fetch a single note by title (exact, then partial) | Read |
 | `oj organize {links,frontmatter,structure} [--apply] [--deep] [--json]` | Vault hygiene — preview by default | Read (preview) / write (`--apply`) |
 | `oj config show [--json]` | Resolved config | Read |
@@ -117,6 +118,22 @@ Every JSON object includes `"_oj_version": "0.3"`. Bump this in `output.py:OJ_VE
   ]
 }
 
+// oj --json stats [--since …] [--until …] [--folder …] [--type T] [--tags …] [--by day|week|month]
+{
+  "_oj_version": "0.3",
+  "window": {"since": "2026-04-01" | null, "until": null},  // echoes filter args, not note dates
+  "total_notes": 142,
+  "by_type": {"free-form": 80, ...},   // sorted count desc; missing type → "untyped"
+  "by_tag": {"work": 44, ...},
+  "by_folder": {"Journal": 120, ...},  // root-level notes → "(root)"
+  "timeline": [{"bucket": "2026-W14", "count": 9}, ...],  // bucket fmt: day=ISO date, week=%G-W%V, month=%Y-%m
+  "first_note_date": "2026-03-02" | null,
+  "last_note_date": "2026-05-28" | null,
+  "active_days": 61,
+  "current_streak_days": 4,   // consecutive days ending today/yesterday; 0 if last note is stale
+  "longest_streak_days": 11
+}
+
 // oj --json get TITLE  →  full Note dict (path, title, folder, filename, frontmatter, body, modified_at)
 // oj --json config show  →  {vault_path, model, max_rounds, location_lat/lon, daily_notes_folder, api_key (masked)}
 // oj --json organize {links|frontmatter|structure}  →  {applied: int, suggestions: [...]}
@@ -177,6 +194,7 @@ This replaces side-channeling specs into `Project Ideas/` from agent code; the w
 - `src/obsidian_journal/output.py` — `emit_json` / `emit_error` / `OJ_VERSION`. The single place all JSON leaves the process.
 - `src/obsidian_journal/models.py` — `Note`, `SpecNote`, `Frontmatter`, `ReflectionType`, `WeatherInfo`. `Note.to_summary_dict()` is the slim `list` shape.
 - `src/obsidian_journal/vault.py` — read/write/search. Populates `Note.path` and `Note.modified_at`. `write_spec` handles slug + `-2`, `-3` collision suffixing.
+- `src/obsidian_journal/stats.py` — pure `compute_stats(notes, by=…, since=…, until=…, today=…) -> dict`. No vault I/O; `cli.py stats` filters via `vault.search_notes` then hands the notes here. `today` is injectable for streak tests.
 - `src/obsidian_journal/journal/synthesize.py` — Anthropic call for journal notes.
 - `src/obsidian_journal/plan/synthesize.py` — Anthropic call for plans.
 - `src/obsidian_journal/plan/parse.py` — block parser for `--json` plan output.
