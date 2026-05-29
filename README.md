@@ -86,6 +86,20 @@ oj list -n 5                   # limit to 5
 oj list -f "Daily Notes"       # list from a different folder
 ```
 
+### Activity stats
+
+```bash
+oj stats                       # all-time journal activity summary
+oj stats --since 2026-04-01    # restrict the window
+oj stats --by month            # bucket the timeline by day | week | month
+oj stats --type free-form --tags work,running   # same filters as `oj query`
+oj --json stats                # agent-consumable activity signal
+```
+
+Reports total notes, by-type / by-tag / by-folder tallies, a bucketed timeline,
+and journaling streaks (current + longest). Read-only — the canonical activity
+signal so downstream tools don't re-walk the vault.
+
 ### Organize your vault
 
 ```bash
@@ -113,7 +127,7 @@ pytest
 ## Roadmap
 
 - [ ] More test coverage (CLI integration tests, synthesize tests)
-- [ ] `oj stats` — summary of journal activity over time
+- [x] `oj stats` — summary of journal activity over time
 - [ ] `--tags` flag for `oj journal` to pre-set tags
 - [x] Daily note integration (`oj plan` — structured daily planning with weather)
 - [ ] Search and export commands

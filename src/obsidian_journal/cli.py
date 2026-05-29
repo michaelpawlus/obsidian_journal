@@ -544,6 +544,85 @@ def query(
 
 
 @app.command()
+def stats(
+    since: str | None = typer.Option(None, "--since", help="Window start (YYYY-MM-DD, inclusive)"),
+    until: str | None = typer.Option(None, "--until", help="Window end (YYYY-MM-DD, inclusive)"),
+    folder: str | None = typer.Option(None, "--folder", "-f", help="Restrict to one folder"),
+    type: str | None = typer.Option(None, "--type", "-t", help="Filter by note type"),
+    tags: str | None = typer.Option(None, "--tags", help="Filter by tags (comma-separated, OR logic)"),
+    by: str = typer.Option("week", "--by", help="Timeline bucket: day | week | month"),
+    top: int = typer.Option(10, "--top", help="Rows to show in by_type / by_tag tables"),
+) -> None:
+    """Summarize journal activity over a time window. Canonical activity signal."""
+    if by not in ("day", "week", "month"):
+        emit_error("--by must be one of: day, week, month", 2)
+
+    cfg = Config.load()
+    from obsidian_journal import vault
+    from obsidian_journal.stats import compute_stats
+
+    tag_list = [t.strip() for t in tags.split(",")] if tags else None
+    notes = vault.search_notes(
+        cfg,
+        folder=folder,
+        note_type=type,
+        tags=tag_list,
+        since=since,
+        until=until,
+    )
+
+    result = compute_stats(notes, by=by, since=since, until=until)
+
+    if json_mode:
+        emit_json(result)
+        raise typer.Exit()
+
+    w = result["window"]
+    window_str = f"{w['since'] or 'all-time'} → {w['until'] or 'now'}"
+    say(
+        f"\n[bold]{result['total_notes']} notes[/bold]  "
+        f"[dim]({window_str})[/dim]  "
+        f"{result['active_days']} active days  "
+        f"current streak {result['current_streak_days']}d  "
+        f"longest {result['longest_streak_days']}d"
+    )
+    if result["first_note_date"]:
+        say(
+            f"[dim]First note {result['first_note_date']} · "
+            f"last note {result['last_note_date']}[/dim]"
+        )
+
+    if result["total_notes"] == 0:
+        say("\n[yellow]No notes match the given filters.[/yellow]")
+        raise typer.Exit()
+
+    def _count_table(title: str, data: dict[str, int]) -> None:
+        if not data:
+            return
+        tbl = Table(title=title)
+        tbl.add_column(title.split(" ")[-1].rstrip("s").capitalize() or "Key")
+        tbl.add_column("Count", justify="right", style="dim")
+        for key, count in list(data.items())[:top]:
+            tbl.add_row(key, str(count))
+        say(tbl)
+
+    _count_table("By type", result["by_type"])
+    _count_table("By tag", result["by_tag"])
+    _count_table("By folder", result["by_folder"])
+
+    if result["timeline"]:
+        tl = Table(title=f"Timeline (by {by})")
+        tl.add_column("Bucket")
+        tl.add_column("Count", justify="right", style="dim")
+        tl.add_column("", style="cyan")
+        max_count = max(b["count"] for b in result["timeline"])
+        for bucket in result["timeline"]:
+            bar_len = round(bucket["count"] / max_count * 20) if max_count else 0
+            tl.add_row(bucket["bucket"], str(bucket["count"]), "█" * bar_len)
+        say(tl)
+
+
+@app.command()
 def get(
     title: str = typer.Argument(help="Note title (exact match, then partial)"),
 ) -> None:
