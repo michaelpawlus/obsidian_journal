@@ -130,5 +130,6 @@ pytest
 - [x] `oj stats` — summary of journal activity over time
 - [ ] `--tags` flag for `oj journal` to pre-set tags
 - [x] Daily note integration (`oj plan` — structured daily planning with weather)
-- [ ] Search and export commands
+- [x] Search — `oj query --search` (full-text in title + body, plus structured filters)
+- [ ] Export command (bulk note export / format conversion)
 - [ ] Template support for custom note structures
