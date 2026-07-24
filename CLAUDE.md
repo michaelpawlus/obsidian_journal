@@ -49,7 +49,7 @@ This is the one personal-use project that is **API-driven** (uses `ANTHROPIC_API
 
 | Variable | Required | Default | Notes |
 |---|---|---|---|
-| `OBSIDIAN_VAULT_PATH` | yes | — | Set globally in `~/.bashrc` |
+| `OBSIDIAN_VAULT_PATH` | yes | — | Set globally in `~/.zshrc` — see "Environment (this machine)" |
 | `ANTHROPIC_API_KEY` | yes | — | Required even for read-only commands today (loaded eagerly) |
 | `OJ_MODEL` | no | `claude-sonnet-4-20250514` | |
 | `OJ_MAX_ROUNDS` | no | `4` | Conversation rounds for `journal` |
