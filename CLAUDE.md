@@ -87,11 +87,13 @@ Python is pinned to **3.12** in `.python-version`. uv otherwise picks the newest
 
 | Item | Where | If missing |
 |---|---|---|
-| `OBSIDIAN_VAULT_PATH` | `~/.zshrc` (→ `~/dev/dotfiles/zsh/.zshrc`) | every command exits `1` |
-| `ANTHROPIC_API_KEY` | `~/.zshrc` | all commands exit `1` — it is loaded eagerly even on read-only paths |
+| `OBSIDIAN_VAULT_PATH` | `~/.zshenv` (→ `~/dev/dotfiles/zsh/.zshenv`) | every command exits `1` |
+| `ANTHROPIC_API_KEY` | `~/.zshenv` | all commands exit `1` — it is loaded eagerly even on read-only paths |
 | The vault itself | `~/dev/vault` | irreplaceable; it is the actual record. Not backed up by this repo |
 
 Both vars are exported globally rather than kept in the repo's `.env` on purpose: `Config.load()` and `cli._resolve_vault_path()` call bare `load_dotenv()`, which resolves `.env` relative to **cwd**. Other CLIs invoke `oj` from their own project directories, where a repo-local `.env` is never found. A `.env` here works only when you are standing in this repo.
+
+They live in `~/.zshenv` rather than `~/.zshrc` specifically because zsh only sources `.zshrc` for *interactive* shells. Agent tooling and any future launchd job invoke `oj` non-interactively, where `.zshrc` is never read and the vault path would be unset.
 
 macOS traps that have already bitten or nearly did: Homebrew lives at `/opt/homebrew` on Apple Silicon (not `/usr/local`); APFS is case-insensitive where ext4 was not; `sed`/`date`/`stat`/`readlink` are BSD and take different flags than the GNU versions.
 
