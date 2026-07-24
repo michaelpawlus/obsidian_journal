@@ -7,10 +7,10 @@ from rich.markdown import Markdown
 from obsidian_journal.config import Config
 from obsidian_journal.models import ConversationMessage, WeatherInfo
 from obsidian_journal.plan.prompts import (
-    PLAN_SYSTEM_PROMPT,
-    PLAN_OPENING_QUESTION,
-    PLAN_WEATHER_CONTEXT,
     PLAN_EXISTING_NOTE_CONTEXT,
+    PLAN_OPENING_QUESTION,
+    PLAN_SYSTEM_PROMPT,
+    PLAN_WEATHER_CONTEXT,
 )
 
 console = Console()

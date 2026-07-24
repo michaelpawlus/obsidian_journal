@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
 
+from obsidian_journal import vault
 from obsidian_journal.config import Config
 from obsidian_journal.models import Frontmatter, Note
-from obsidian_journal import vault
 
 console = Console()
 

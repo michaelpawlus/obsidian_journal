@@ -1,15 +1,14 @@
-from pathlib import Path
 
 import pytest
 
 from obsidian_journal.config import Config
 from obsidian_journal.models import Frontmatter, Note
 from obsidian_journal.vault import (
-    list_notes,
+    get_all_note_titles,
     list_journal_notes,
+    list_notes,
     read_note,
     write_note,
-    get_all_note_titles,
 )
 
 

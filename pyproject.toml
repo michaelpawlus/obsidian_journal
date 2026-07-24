@@ -32,5 +32,38 @@ dev = [
 [tool.ruff]
 target-version = "py311"
 
+# Selected explicitly rather than relying on ruff's defaults, which have widened
+# across releases — an unpinned set means a ruff upgrade silently changes what CI
+# enforces.
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "UP", "B", "S", "BLE", "DTZ", "PERF", "RUF"]
+
+# `oj` writes notes named `YYYY-MM-DD` and computes streaks against the user's
+# *local civil date*. DTZ011 wants an explicit tz on date.today(); using UTC here
+# would file a 9pm entry under tomorrow and break the streak count for anyone
+# west of Greenwich. Local-naive is the intended semantics, not an oversight.
+ignore = ["DTZ011"]
+
+[tool.ruff.lint.per-file-ignores]
+# Typer's whole API is function calls in argument defaults (`typer.Option(...)`).
+"src/obsidian_journal/cli.py" = ["B008"]
+# read_note() returns None for any unreadable note: a single malformed
+# frontmatter block must not abort a vault-wide scan.
+"src/obsidian_journal/vault.py" = ["BLE001"]
+# Weather is optional enrichment — any failure degrades to a plan without it.
+"src/obsidian_journal/plan/weather.py" = ["BLE001"]
+# Per-note semantic-match parsing; one bad response must not sink the whole
+# organize preview. PERF401: the flagged append sits under a nested loop with a
+# three-clause guard and a per-note `already_suggested` set — a comprehension
+# there is slower to read, not faster to run.
+"src/obsidian_journal/organize/links.py" = ["BLE001", "S110", "PERF401"]
+# ReflectionType subclasses (str, Enum) rather than StrEnum on purpose: its
+# member values are written into frontmatter `type` and `journal/<type>` tags,
+# and StrEnum changes what str(member) yields. UP042's "fix" would silently
+# alter the shape of every note the tool writes.
+"src/obsidian_journal/models.py" = ["UP042"]
+# assert is the point of a test file.
+"tests/**" = ["S101"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

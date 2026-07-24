@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
 
+from obsidian_journal import vault
 from obsidian_journal.config import Config
 from obsidian_journal.models import Note
 from obsidian_journal.organize.analyze import analyze_content
-from obsidian_journal import vault
 
 console = Console()
 

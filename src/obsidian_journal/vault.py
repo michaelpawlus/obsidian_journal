@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import shutil
+from datetime import UTC
 from pathlib import Path
 
 import frontmatter as fm
@@ -34,7 +35,7 @@ def list_notes(config: Config) -> list[Note]:
 
 
 def read_note(config: Config, rel_path: Path | str) -> Note | None:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     rel_path = Path(rel_path)
     full_path = config.vault_path / rel_path
@@ -54,7 +55,7 @@ def read_note(config: Config, rel_path: Path | str) -> Note | None:
     )
     folder = str(rel_path.parent) if rel_path.parent != Path(".") else ""
     title = rel_path.stem
-    mtime = datetime.fromtimestamp(full_path.stat().st_mtime, tz=timezone.utc)
+    mtime = datetime.fromtimestamp(full_path.stat().st_mtime, tz=UTC)
     return Note(
         title=title,
         body=post.content,

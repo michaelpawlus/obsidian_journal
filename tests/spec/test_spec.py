@@ -12,7 +12,6 @@ from obsidian_journal.config import Config
 from obsidian_journal.models import Frontmatter, SpecNote
 from obsidian_journal.spec.synthesize import slug_for_title
 
-
 SPEC_BODY_FIXTURE = """\
 # oj spec Subcommand
 

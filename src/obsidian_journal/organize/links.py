@@ -6,10 +6,10 @@ from dataclasses import dataclass
 from rich.console import Console
 from rich.table import Table
 
+from obsidian_journal import vault
 from obsidian_journal.config import Config
 from obsidian_journal.models import Note
 from obsidian_journal.organize.analyze import analyze_content
-from obsidian_journal import vault
 
 console = Console()
 
@@ -125,7 +125,7 @@ def apply_links(config: Config, suggestions: list[LinkSuggestion]) -> int:
         by_note.setdefault(key, []).append(s)
 
     count = 0
-    for _, note_suggestions in by_note.items():
+    for note_suggestions in by_note.values():
         note = note_suggestions[0].note
         body = note.body
         for s in note_suggestions:

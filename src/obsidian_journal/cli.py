@@ -12,7 +12,7 @@ from rich.table import Table
 
 from obsidian_journal.config import Config
 from obsidian_journal.models import ReflectionType
-from obsidian_journal.output import emit_json, emit_error
+from obsidian_journal.output import emit_error, emit_json
 
 app = typer.Typer(name="oj", help="Obsidian Journal — agentic capture & vault organizer")
 organize_app = typer.Typer(help="Organize your Obsidian vault")
@@ -69,9 +69,9 @@ def journal(
 
     say(f"\n[bold green]Starting {type.value} reflection...[/bold green]")
 
+    from obsidian_journal import vault
     from obsidian_journal.journal.capture import run_conversation
     from obsidian_journal.journal.synthesize import synthesize_note
-    from obsidian_journal import vault
     from obsidian_journal.models import ConversationMessage
 
     # Run conversation or use quick capture
@@ -157,10 +157,10 @@ def plan(
             "Set OJ_LOCATION_LAT and OJ_LOCATION_LON for weather-aware planning.[/dim]"
         )
 
-    from obsidian_journal.plan.capture import run_plan_conversation
-    from obsidian_journal.plan.synthesize import synthesize_plan
     from obsidian_journal import vault
     from obsidian_journal.models import ConversationMessage
+    from obsidian_journal.plan.capture import run_plan_conversation
+    from obsidian_journal.plan.synthesize import synthesize_plan
 
     # Check for existing daily note content
     existing_note = vault.read_daily_note(cfg, today)
@@ -285,10 +285,10 @@ def spec(
 
     target_folder = folder or "Project Ideas"
 
-    say(f"\n[bold green]Drafting spec...[/bold green]")
+    say("\n[bold green]Drafting spec...[/bold green]")
 
-    from obsidian_journal.spec.synthesize import synthesize_spec, slug_for_title
     from obsidian_journal import vault
+    from obsidian_journal.spec.synthesize import slug_for_title, synthesize_spec
 
     existing_titles = vault.get_all_note_titles(cfg)
     spec_note = synthesize_spec(
@@ -668,7 +668,7 @@ def organize_links(
 ) -> None:
     """Scan notes for potential wikilinks between existing notes."""
     cfg = Config.load()
-    from obsidian_journal.organize.links import scan_links, preview_links, apply_links
+    from obsidian_journal.organize.links import apply_links, preview_links, scan_links
 
     console.print("[dim]Scanning for wikilink opportunities...[/dim]\n")
     suggestions = scan_links(cfg, deep=deep)
@@ -701,9 +701,9 @@ def organize_frontmatter(
     """Standardize YAML frontmatter across notes."""
     cfg = Config.load()
     from obsidian_journal.organize.frontmatter import (
-        scan_frontmatter,
-        preview_frontmatter,
         apply_frontmatter,
+        preview_frontmatter,
+        scan_frontmatter,
     )
 
     console.print("[dim]Scanning frontmatter...[/dim]\n")
@@ -738,9 +738,9 @@ def organize_structure(
     """Suggest folder reorganization for root-level notes."""
     cfg = Config.load()
     from obsidian_journal.organize.structure import (
-        scan_structure,
-        preview_structure,
         apply_structure,
+        preview_structure,
+        scan_structure,
     )
 
     console.print("[dim]Analyzing vault structure...[/dim]\n")
@@ -781,7 +781,7 @@ def config_show() -> None:
         if json_mode:
             emit_error(str(e), 1)
         console.print(f"[red]Configuration error:[/red] {e}")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from e
 
     if json_mode:
         emit_json({

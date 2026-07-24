@@ -5,7 +5,12 @@ from datetime import date
 from anthropic import Anthropic
 
 from obsidian_journal.config import Config
-from obsidian_journal.models import ConversationMessage, Frontmatter, Note, ReflectionType
+from obsidian_journal.models import (
+    ConversationMessage,
+    Frontmatter,
+    Note,
+    ReflectionType,
+)
 
 SYNTHESIZE_SYSTEM = """\
 You are a note synthesizer. Given a journaling conversation, produce a well-structured \
@@ -77,10 +82,7 @@ def synthesize_note(
     title = title_response.content[0].text.strip()
 
     # Extract wikilinks as related notes
-    related = []
-    for t in existing_titles:
-        if f"[[{t}]]" in body:
-            related.append(t)
+    related = [t for t in existing_titles if f"[[{t}]]" in body]
 
     # Build tags from reflection type
     tags = [f"journal/{reflection_type.value}"]

@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from collections import Counter
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
+from itertools import pairwise
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from obsidian_journal.models import Note
 
 
-def _note_date(note: "Note") -> date | None:
+def _note_date(note: Note) -> date | None:
     """Best-effort calendar date for a note.
 
     Prefer `frontmatter.date` (YYYY-MM-DD); fall back to the date portion of
@@ -46,7 +47,7 @@ def _streaks(active_dates: list[date], today: date) -> tuple[int, int]:
     # Longest run of consecutive days.
     longest = 1
     run = 1
-    for prev, cur in zip(active_dates, active_dates[1:]):
+    for prev, cur in pairwise(active_dates):
         if (cur - prev).days == 1:
             run += 1
         else:
@@ -69,7 +70,7 @@ def _streaks(active_dates: list[date], today: date) -> tuple[int, int]:
 
 
 def compute_stats(
-    notes: list["Note"],
+    notes: list[Note],
     by: str = "week",
     today: date | None = None,
     since: str | None = None,
