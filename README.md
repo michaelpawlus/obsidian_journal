@@ -5,10 +5,12 @@ An agentic CLI that captures reflections through guided conversation with Claude
 ## Installation
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
+uv sync
 ```
+
+That creates `.venv` from `uv.lock` using the Python pinned in `.python-version`.
+Run the CLI with `uv run oj …`, or put the project venv's `bin` on your `PATH`
+to call `oj` bare from anywhere (see [Development](#development)).
 
 ## Configuration
 
@@ -120,9 +122,13 @@ Add `--deep` to `links` or `structure` for Claude-powered semantic analysis.
 ## Development
 
 ```bash
-pip install -e ".[dev]"
-pytest
+uv sync                 # install project + dev group from uv.lock
+uv run pytest
+uv run ruff check .
 ```
+
+`uv run` needs no activation — it resolves the project root itself, so it works
+from any subdirectory.
 
 ## Roadmap
 

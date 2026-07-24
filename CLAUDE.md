@@ -16,10 +16,11 @@ This is the one personal-use project that is **API-driven** (uses `ANTHROPIC_API
 ## Running tests
 
 ```bash
-.venv/bin/pytest
+uv run pytest
+uv run ruff check .
 ```
 
-(There is no system-wide `pytest`.) The CLI is installed via `pip install -e .`; invoke as `oj`, never as `python -m obsidian_journal`.
+uv only — never pip, never a hand-rolled venv. `uv run` resolves the project root itself, so it needs no activation and works from any subdirectory. Invoke the CLI as `oj` (or `uv run oj`), never as `python -m obsidian_journal`.
 
 ## Available commands
 

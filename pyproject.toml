@@ -24,4 +24,13 @@ packages = ["src/obsidian_journal"]
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "ruff>=0.16.0",
 ]
+
+# Lint against the oldest interpreter the package supports (requires-python),
+# not the pinned dev interpreter in .python-version.
+[tool.ruff]
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
