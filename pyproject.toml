@@ -10,7 +10,10 @@ requires-python = ">=3.11"
 dependencies = [
     "anthropic>=0.40.0",
     "httpx>=0.27.0",
-    "typer[all]>=0.12.0",
+    "typer>=0.12.0",
+    # Imported directly in cli.py and organize/*; it was only ever arriving as a
+    # transitive of the (now nonexistent) typer[all] extra.
+    "rich>=13.0.0",
     "python-frontmatter>=1.1.0",
     "python-dotenv>=1.0.0",
 ]
