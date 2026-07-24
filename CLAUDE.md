@@ -57,6 +57,44 @@ uv only — never pip, never a hand-rolled venv. `uv run` resolves the project r
 | `OJ_LOCATION_LAT` / `OJ_LOCATION_LON` | no | unset | Enables weather-aware planning |
 | `OJ_DAILY_NOTES_FOLDER` | no | `Daily Notes` | |
 
+## Environment (this machine)
+
+Migrated from WSL2 to macOS (Apple Silicon) on 2026-07-24. Written for whoever does this next.
+
+**Layout**
+
+| What | Where |
+|---|---|
+| Repo | `~/dev/projects/obsidian_journal` |
+| Vault | `~/dev/vault` (603 readable notes; `Templates/` is excluded by `vault.SKIP_DIRS`) |
+| `oj` on `PATH` | `~/.local/bin/oj` → symlink into this repo's `.venv/bin/oj` |
+
+Never put the repo or the vault under `~/Documents` or `~/Desktop` — both are iCloud-synced by default, and iCloud and git corrupt each other.
+
+**Toolchain — uv only, never pip**
+
+```bash
+uv sync            # rebuild .venv from uv.lock
+uv run pytest
+uv run ruff check .
+```
+
+Python is pinned to **3.12** in `.python-version`. uv otherwise picks the newest interpreter installed (3.14 is present here), which this project has never run on; 3.12 is what CI proves. `requires-python` still claims `>=3.11`, but nothing tests that floor since CI dropped its version matrix — treat 3.12 as the real support target until someone decides otherwise.
+
+`oj` on `PATH` is a symlink to `.venv/bin/oj`, deliberately **not** `uv tool install`. A separate tool env re-resolves dependencies outside `uv.lock` (it picked typer 0.27 against the locked 0.24), so the vault's writer-of-record would run a dependency set nothing tested. The tradeoff: `oj` breaks if `.venv` is deleted — `uv sync` restores it.
+
+**Machine-local, not in git**
+
+| Item | Where | If missing |
+|---|---|---|
+| `OBSIDIAN_VAULT_PATH` | `~/.zshrc` (→ `~/dev/dotfiles/zsh/.zshrc`) | every command exits `1` |
+| `ANTHROPIC_API_KEY` | `~/.zshrc` | all commands exit `1` — it is loaded eagerly even on read-only paths |
+| The vault itself | `~/dev/vault` | irreplaceable; it is the actual record. Not backed up by this repo |
+
+Both vars are exported globally rather than kept in the repo's `.env` on purpose: `Config.load()` and `cli._resolve_vault_path()` call bare `load_dotenv()`, which resolves `.env` relative to **cwd**. Other CLIs invoke `oj` from their own project directories, where a repo-local `.env` is never found. A `.env` here works only when you are standing in this repo.
+
+macOS traps that have already bitten or nearly did: Homebrew lives at `/opt/homebrew` on Apple Silicon (not `/usr/local`); APFS is case-insensitive where ext4 was not; `sed`/`date`/`stat`/`readlink` are BSD and take different flags than the GNU versions.
+
 ## JSON contract (v0.3)
 
 Every JSON object includes `"_oj_version": "0.3"`. Bump this in `output.py:OJ_VERSION` when the shape changes; downstream callers should pin against it.
